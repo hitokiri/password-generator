@@ -1,0 +1,13 @@
+[project]
+name = "password-generator-ctk"
+version = "0.1.0"
+description = "Generador de passwords con customtkinter"
+requires-python = ">=3.10"
+dependencies = [
+    "customtkinter>=5.2.2",
+]
+
+[project.optional-dependencies]
+build = [
+    "pyinstaller>=6.10",
+]
