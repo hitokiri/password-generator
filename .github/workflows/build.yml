@@ -4,6 +4,9 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -28,11 +31,57 @@ jobs:
         run: uv sync --extra build
 
       - name: Build executable
+        shell: bash
         run: |
-          uv run pyinstaller --noconfirm --onefile --windowed --name password-generator-${{ github.ref_name }} main.py
+          uv run pyinstaller --noconfirm --onefile --windowed --name password-generator main.py
+
+      - name: Package release asset
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_NAME="password-generator"
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cp "dist/${APP_NAME}.exe" "${APP_NAME} ${VERSION} windows.exe"
+            ASSET_PATH="${APP_NAME} ${VERSION} windows.exe"
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            cp "dist/${APP_NAME}" "${APP_NAME} ${VERSION} macos"
+            tar -czf "${APP_NAME} ${VERSION} macos.tar.gz" "${APP_NAME} ${VERSION} macos"
+            ASSET_PATH="${APP_NAME} ${VERSION} macos.tar.gz"
+          else
+            cp "dist/${APP_NAME}" "${APP_NAME} ${VERSION} linux"
+            tar -czf "${APP_NAME} ${VERSION} linux.tar.gz" "${APP_NAME} ${VERSION} linux"
+            ASSET_PATH="${APP_NAME} ${VERSION} linux.tar.gz"
+          fi
+
+          echo "asset_path=$ASSET_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: password-generator-${{ github.ref_name }}-${{ matrix.os }}
-          path: dist/*
+          name: release-${{ matrix.os }}
+          path: ${{ steps.package.outputs.asset_path }}
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: password-generator ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          files: release-assets/*
+          generate_release_notes: true
