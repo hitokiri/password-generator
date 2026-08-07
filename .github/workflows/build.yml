@@ -43,16 +43,16 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
 
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            cp "dist/${APP_NAME}.exe" "${APP_NAME} ${VERSION}.exe"
-            ASSET_PATH="${APP_NAME} ${VERSION}.exe"
+            ASSET_PATH="${APP_NAME}.${VERSION}.windows.exe"
+            cp "dist/${APP_NAME}.exe" "$ASSET_PATH"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            cp "dist/${APP_NAME}" "${APP_NAME} ${VERSION}"
-            zip -j "${APP_NAME} ${VERSION}.zip" "${APP_NAME} ${VERSION}"
-            ASSET_PATH="${APP_NAME} ${VERSION}.zip"
+            # --windowed makes PyInstaller emit a real .app bundle on macOS; ship that, not the raw binary inside it.
+            ASSET_PATH="${APP_NAME}.${VERSION}.macos.zip"
+            (cd dist && zip -r -q "../${ASSET_PATH}" "${APP_NAME}.app")
           else
-            cp "dist/${APP_NAME}" "${APP_NAME} ${VERSION}"
-            tar -czf "${APP_NAME} ${VERSION}.tar.gz" "${APP_NAME} ${VERSION}"
-            ASSET_PATH="${APP_NAME} ${VERSION}.tar.gz"
+            ASSET_PATH="${APP_NAME}.${VERSION}.linux"
+            cp "dist/${APP_NAME}" "$ASSET_PATH"
+            chmod +x "$ASSET_PATH"
           fi
 
           echo "asset_path=$ASSET_PATH" >> "$GITHUB_OUTPUT"
