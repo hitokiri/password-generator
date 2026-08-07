@@ -3,9 +3,7 @@ name: Build Desktop App
 on:
   push:
     tags: ["v*"]
-
-permissions:
-  contents: write
+  workflow_dispatch: {}
 
 jobs:
   build:
@@ -45,16 +43,16 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
 
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            cp "dist/${APP_NAME}.exe" "${APP_NAME} ${VERSION} windows.exe"
-            ASSET_PATH="${APP_NAME} ${VERSION} windows.exe"
+            cp "dist/${APP_NAME}.exe" "${APP_NAME} ${VERSION}.exe"
+            ASSET_PATH="${APP_NAME} ${VERSION}.exe"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            cp "dist/${APP_NAME}" "${APP_NAME} ${VERSION} macos"
-            tar -czf "${APP_NAME} ${VERSION} macos.tar.gz" "${APP_NAME} ${VERSION} macos"
-            ASSET_PATH="${APP_NAME} ${VERSION} macos.tar.gz"
+            cp "dist/${APP_NAME}" "${APP_NAME} ${VERSION}"
+            zip -j "${APP_NAME} ${VERSION}.zip" "${APP_NAME} ${VERSION}"
+            ASSET_PATH="${APP_NAME} ${VERSION}.zip"
           else
-            cp "dist/${APP_NAME}" "${APP_NAME} ${VERSION} linux"
-            tar -czf "${APP_NAME} ${VERSION} linux.tar.gz" "${APP_NAME} ${VERSION} linux"
-            ASSET_PATH="${APP_NAME} ${VERSION} linux.tar.gz"
+            cp "dist/${APP_NAME}" "${APP_NAME} ${VERSION}"
+            tar -czf "${APP_NAME} ${VERSION}.tar.gz" "${APP_NAME} ${VERSION}"
+            ASSET_PATH="${APP_NAME} ${VERSION}.tar.gz"
           fi
 
           echo "asset_path=$ASSET_PATH" >> "$GITHUB_OUTPUT"
@@ -64,24 +62,34 @@ jobs:
         with:
           name: release-${{ matrix.os }}
           path: ${{ steps.package.outputs.asset_path }}
+          if-no-files-found: error
 
   release:
     name: Publish GitHub Release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: release-*
-          path: release-assets
-          merge-multiple: true
+          path: artifacts
+
+      - name: Flatten artifacts into release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
         with:
           name: password-generator ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
-          files: release-assets/*
+          files: release/*
           generate_release_notes: true
